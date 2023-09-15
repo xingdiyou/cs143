@@ -42,6 +42,21 @@ void class__class::dump(ostream& stream, int n)
 }
 
 
+Symbol class__class::get_name() {
+   return name;
+}
+
+
+Symbol class__class::get_parent() {
+   return parent;
+}
+
+
+Features class__class::get_features() {
+   return features;
+}
+
+
 Feature method_class::copy_Feature()
 {
    return new method_class(copy_Symbol(name), formals->copy_list(), copy_Symbol(return_type), expr->copy_Expression());
@@ -55,6 +70,26 @@ void method_class::dump(ostream& stream, int n)
    formals->dump(stream, n+2);
    dump_Symbol(stream, n+2, return_type);
    expr->dump(stream, n+2);
+}
+
+
+Symbol method_class::get_name() {
+   return name;
+}
+
+
+Formals method_class::get_formals() {
+   return formals;
+}
+
+
+Symbol method_class::get_return_type() {
+   return return_type;
+}
+
+
+Expression method_class::get_expr() {
+   return expr;
 }
 
 
@@ -73,6 +108,21 @@ void attr_class::dump(ostream& stream, int n)
 }
 
 
+Symbol attr_class::get_name() {
+   return name;
+}
+
+
+Symbol attr_class::get_type_decl() {
+   return type_decl;
+}
+
+
+Expression attr_class::get_init() {
+   return init;
+}
+
+
 Formal formal_class::copy_Formal()
 {
    return new formal_class(copy_Symbol(name), copy_Symbol(type_decl));
@@ -84,6 +134,16 @@ void formal_class::dump(ostream& stream, int n)
    stream << pad(n) << "formal\n";
    dump_Symbol(stream, n+2, name);
    dump_Symbol(stream, n+2, type_decl);
+}
+
+
+Symbol formal_class::get_name() {
+   return name;
+}
+
+
+Symbol formal_class::get_type_decl() {
+   return type_decl;
 }
 
 
@@ -116,6 +176,16 @@ void assign_class::dump(ostream& stream, int n)
 }
 
 
+Symbol assign_class::get_name() {
+   return name;
+}
+
+
+Expression assign_class::get_expr() {
+   return expr;
+}
+
+
 Expression static_dispatch_class::copy_Expression()
 {
    return new static_dispatch_class(expr->copy_Expression(), copy_Symbol(type_name), copy_Symbol(name), actual->copy_list());
@@ -144,6 +214,18 @@ void dispatch_class::dump(ostream& stream, int n)
    expr->dump(stream, n+2);
    dump_Symbol(stream, n+2, name);
    actual->dump(stream, n+2);
+}
+
+Expression dispatch_class::get_expr() {
+   return expr;
+}
+
+Symbol dispatch_class::get_name() {
+   return name;
+}
+
+Expressions dispatch_class::get_actual() {
+   return actual;
 }
 
 
@@ -200,6 +282,11 @@ void block_class::dump(ostream& stream, int n)
 {
    stream << pad(n) << "block\n";
    body->dump(stream, n+2);
+}
+
+
+Expressions block_class::get_body() {
+   return body;
 }
 
 
@@ -394,6 +481,10 @@ void new__class::dump(ostream& stream, int n)
    dump_Symbol(stream, n+2, type_name);
 }
 
+Symbol new__class::get_type_name() {
+   return type_name;
+}
+
 
 Expression isvoid_class::copy_Expression()
 {
@@ -430,6 +521,11 @@ void object_class::dump(ostream& stream, int n)
 {
    stream << pad(n) << "object\n";
    dump_Symbol(stream, n+2, name);
+}
+
+
+Symbol object_class::get_name() {
+   return name;
 }
 
 

@@ -83,10 +83,15 @@ static void initialize_constants(void)
 
 
 
-ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
+ClassTable::ClassTable(Classes classes) : semant_errors_(0), error_stream_(cerr), classes_(classes) {
 
     /* Fill this in */
-
+    feature_tables_.enterscope();
+    symbol_tables_.enterscope();
+    install_basic_classes();
+    install_user_defined_classes();
+    check_inheritance();
+    check_type();
 }
 
 void ClassTable::install_basic_classes() {
@@ -122,6 +127,14 @@ void ClassTable::install_basic_classes() {
 					       single_Features(method(type_name, nil_Formals(), Str, no_expr()))),
 			       single_Features(method(copy, nil_Formals(), SELF_TYPE, no_expr()))),
 	       filename);
+    {
+        auto *feature_table = new SymbolTable<Symbol, Feature_class>();
+        feature_table->enterscope();
+        feature_table->addid(cool_abort, method(cool_abort, nil_Formals(), Object, no_expr()));
+        feature_table->addid(type_name, method(type_name, nil_Formals(), Str, no_expr()));
+        feature_table->addid(copy, method(copy, nil_Formals(), SELF_TYPE, no_expr()));
+        feature_tables_.addid(Object, feature_table);
+    }
 
     // 
     // The IO class inherits from Object. Its methods are
@@ -143,6 +156,15 @@ void ClassTable::install_basic_classes() {
 					       single_Features(method(in_string, nil_Formals(), Str, no_expr()))),
 			       single_Features(method(in_int, nil_Formals(), Int, no_expr()))),
 	       filename);  
+    {
+        auto *feature_table = new SymbolTable<Symbol, Feature_class>();
+        feature_table->enterscope();
+        feature_table->addid(out_string, method(out_string, single_Formals(formal(arg, Str)), SELF_TYPE, no_expr()));
+        feature_table->addid(out_int, method(out_int, single_Formals(formal(arg, Int)), SELF_TYPE, no_expr()));
+        feature_table->addid(in_string, method(in_string, nil_Formals(), Str, no_expr()));
+        feature_table->addid(in_int, method(in_int, nil_Formals(), Int, no_expr()));
+        feature_tables_.addid(IO, feature_table);
+    }
 
     //
     // The Int class has no methods and only a single attribute, the
@@ -153,12 +175,24 @@ void ClassTable::install_basic_classes() {
 	       Object,
 	       single_Features(attr(val, prim_slot, no_expr())),
 	       filename);
+    {
+        auto *feature_table = new SymbolTable<Symbol, Feature_class>();
+        feature_table->enterscope();
+        feature_table->addid(val, attr(val, prim_slot, no_expr()));
+        feature_tables_.addid(Int, feature_table);
+    }
 
     //
     // Bool also has only the "val" slot.
     //
     Class_ Bool_class =
 	class_(Bool, Object, single_Features(attr(val, prim_slot, no_expr())),filename);
+    {
+        auto *feature_table = new SymbolTable<Symbol, Feature_class>();
+        feature_table->enterscope();
+        feature_table->addid(val, attr(val, prim_slot, no_expr()));
+        feature_tables_.addid(Bool, feature_table);
+    }
 
     //
     // The class Str has a number of slots and operations:
@@ -188,6 +222,16 @@ void ClassTable::install_basic_classes() {
 						      Str, 
 						      no_expr()))),
 	       filename);
+    {
+        auto *feature_table = new SymbolTable<Symbol, Feature_class>();
+        feature_table->enterscope();
+        feature_table->addid(val, attr(val, Int, no_expr()));
+        feature_table->addid(str_field, attr(str_field, prim_slot, no_expr()));
+        feature_table->addid(length, method(length, nil_Formals(), Int, no_expr()));
+        feature_table->addid(concat, method(concat, single_Formals(formal(arg, Str)), Str, no_expr()));
+        feature_table->addid(substr, method(substr, append_Formals(single_Formals(formal(arg, Int)), single_Formals(formal(arg2, Int))), Str, no_expr()));
+        feature_tables_.addid(Str, feature_table);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -212,16 +256,303 @@ ostream& ClassTable::semant_error(Class_ c)
 
 ostream& ClassTable::semant_error(Symbol filename, tree_node *t)
 {
-    error_stream << filename << ":" << t->get_line_number() << ": ";
+    error_stream_ << filename << ":" << t->get_line_number() << ": ";
     return semant_error();
 }
 
 ostream& ClassTable::semant_error()                  
 {                                                 
-    semant_errors++;                            
-    return error_stream;
-} 
+    semant_errors_++;                            
+    return error_stream_;
+}
 
+void ClassTable::install_user_defined_classes() {
+    for (int i = classes_->first(); classes_->more(i); i = classes_->next(i)) {
+        if (auto *class_ = dynamic_cast<class__class *>(classes_->nth(i)); class_ != nullptr) {
+            auto *class_name = class_->get_name();
+            if (feature_tables_.lookup(class_name) != nullptr) {
+                semant_error() << class_->get_filename()
+                            << ":" << class_->get_line_number()
+                            << ": Class " << class_name
+                            << " was previously defined.";
+                continue;
+            }
+
+            auto *features = class_->get_features();
+            auto *feature_table = new SymbolTable<Symbol, Feature_class>();
+            auto *symbol_table = new SymbolTable<Symbol, Entry>();
+            feature_table->enterscope();
+            symbol_table->enterscope();
+            symbol_table->addid(idtable.add_string("self"), class_name);
+            for (int j = features->first(); features->more(j); j = features->next(j)) {
+                auto *feature = features->nth(j);
+                auto *feature_name = feature->get_name();
+                if (auto *method = dynamic_cast<method_class *>(feature); method != nullptr) {
+                    feature_table->addid(feature_name, method);
+                }
+                else if (auto *attr = dynamic_cast<attr_class *>(feature); attr != nullptr) {
+                    symbol_table->addid(attr->get_name(), attr->get_type_decl());
+                }
+            }
+            feature_tables_.addid(class_name, feature_table);
+            symbol_tables_.addid(class_name, symbol_table);
+        }
+    }
+}
+
+void ClassTable::check_inheritance() {
+    for (int i = classes_->first(); classes_->more(i); i = classes_->next(i)) {
+        if (auto *class_ = dynamic_cast<class__class *>(classes_->nth(i)); class_ != nullptr) {
+            auto *class_name = class_->get_name();
+            auto *parent_name = class_->get_parent();
+            if (feature_tables_.lookup(parent_name) == nullptr) {
+                semant_error() << class_->get_filename()
+                            << ":" << class_->get_line_number()
+                            << ": Class " << class_name
+                            << " inherits from an undefined class " << parent_name;
+                continue;
+            }
+        }
+    }
+}
+
+void ClassTable::check_type() {
+    for (int i = classes_->first(); classes_->more(i); i = classes_->next(i)) {
+        if (auto *class_ = dynamic_cast<class__class *>(classes_->nth(i)); class_ != nullptr) {
+            current_file_name_ = class_->get_filename();
+            current_class_name_ = class_->get_name();
+            auto *symbol_table = symbol_tables_.lookup(class_->get_name());
+
+            auto *features = class_->get_features();
+            for (int j = features->first(); features->more(j); j = features->next(j)) {
+                if (auto *method = dynamic_cast<method_class *>(features->nth(j)); method != nullptr) {
+                    symbol_table->enterscope();
+
+                    auto *formals = method->get_formals();
+                    for (int k = formals->first(); formals->more(k); k = formals->next(k)) {
+                        if (auto *formal = dynamic_cast<formal_class *>(formals->nth(k)); formal != nullptr) {
+                            symbol_table->addid(formal->get_name(), formal->get_type_decl());
+                        }
+                    }
+
+                    auto *return_type = method->get_return_type();
+                    if (feature_tables_.lookup(return_type) == nullptr) {
+                        semant_error() << class_->get_filename() << ":" << method->get_line_number()
+                                        << ": Undefined return type " << return_type
+                                        << " in method " << method->get_name()
+                                        << ".\n";
+                        continue;
+                    }
+
+                    auto *expr = method->get_expr();
+                    auto *inferred_return_type = check_expr(expr);
+                    if (!inferred_return_type->equal_string(return_type->get_string(), return_type->get_len())) {
+                        semant_error() << class_->get_filename() << ":" << method->get_line_number()
+                                        << ": Inferred return type " << inferred_return_type
+                                        << " of method " << method->get_name()
+                                        << " does not conform to declared return type " << return_type
+                                        << ".\n";
+                    }
+
+                    symbol_table->exitscope();
+                } else if (auto *attr = dynamic_cast<attr_class *>(features->nth(j)); attr != nullptr) {
+                    auto *type_decl = attr->get_type_decl();
+                    if (feature_tables_.lookup(type_decl) == nullptr) {
+                        semant_error() << class_->get_filename() << ":" << attr->get_line_number()
+                                        << ": Class " << type_decl
+                                        << " of attribute " << attr->get_name()
+                                        << " is undefined.\n";
+                        continue;
+                    }
+
+                    auto *init = attr->get_init();
+                    if (dynamic_cast<no_expr_class *>(init) != nullptr) {
+                        continue;
+                    }
+                    
+                    if (!check_expr(init)->equal_string(type_decl->get_string(), type_decl->get_len())) {
+                        semant_error() << class_->get_filename() << ":" << class_->get_line_number()
+                                        << ": Attribute " << attr->get_name()
+                                        << " has an incorrect type " << type_decl << "\n";
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+}
+
+Symbol ClassTable::check_expr(Expression_class *expr) {
+    if (auto *new_ = dynamic_cast<new__class *>(expr); new_ != nullptr) {
+        return check_new(new_);
+    }
+    if (auto *block = dynamic_cast<block_class *>(expr); block != nullptr) {
+        return check_block(block);
+    }
+    if (auto *assign = dynamic_cast<assign_class *>(expr); assign != nullptr) {
+        return check_assign(assign);
+    }
+    if (auto *object = dynamic_cast<object_class *>(expr); object != nullptr) {
+        return check_object(object);
+    }
+    if (auto *dispatch = dynamic_cast<dispatch_class *>(expr); dispatch != nullptr) {
+        return check_dispatch(dispatch);
+    }
+    if (auto *int_const = dynamic_cast<int_const_class *>(expr); int_const != nullptr) {
+        return check_int_const(int_const);
+    }
+    if (auto *bool_const = dynamic_cast<bool_const_class *>(expr); bool_const != nullptr) {
+        return check_bool_const(bool_const);
+    }
+    if (auto *string_const = dynamic_cast<string_const_class *>(expr); string_const != nullptr) {
+        return check_string_const(string_const);
+    }
+    return idtable.add_string("Unknown");
+}
+
+
+Symbol ClassTable::check_new(new__class *new_) {
+    auto *type_name = new_->get_type_name();
+    if (feature_tables_.lookup(type_name) == nullptr) {
+        semant_error() << "Type name: " << type_name
+                       << " is not defined.";
+        return nullptr;
+    }
+    new_->set_type(type_name);
+    return type_name;
+}
+
+
+Symbol ClassTable::check_block(block_class *block) {
+    auto *body = block->get_body();    
+    Symbol result_type = nullptr;
+    for (int i = body->first(); body->more(i); i = body->next(i)) {
+        result_type = check_expr(body->nth(i));
+    }
+    if (result_type == current_class_name_) {
+        block->set_type(SELF_TYPE);
+    } else {
+        block->set_type(result_type);
+    }
+    return result_type;
+}
+
+
+Symbol ClassTable::check_assign(assign_class *assign) {
+    auto *name = assign->get_name();
+    auto *expr = assign->get_expr();
+    auto *symbol_table = symbol_tables_.lookup(current_class_name_);
+    auto *type = symbol_table->lookup(name);
+    if (type == nullptr) {
+        semant_error() << current_file_name_ << ":" << assign->get_line_number()
+                        << ": Undeclared identifier " << name
+                        << ".\n";
+        return nullptr;
+    }
+    auto *inferred_type = check_expr(expr);
+    if (!inferred_type->equal_string(type->get_string(), type->get_len())) {
+        semant_error() << current_file_name_ << ":" << assign->get_line_number()
+                        << ": Type " << inferred_type
+                        << " of assigned expression does not conform to declared type " << type
+                        << ".\n";
+        return nullptr;
+    }
+    assign->set_type(type);
+    return Object;
+}
+
+
+Symbol ClassTable::check_object(object_class *object) {
+    auto *name = object->get_name();
+    auto *symbol_table = symbol_tables_.lookup(current_class_name_);
+    auto *type = symbol_table->lookup(name);
+    if (type == nullptr) {
+        semant_error() << current_file_name_ << ":" << object->get_line_number()
+                << ": Undeclared identifier " << name
+                << ".\n";
+        return nullptr;
+    }
+    if (type == current_class_name_) {
+        object->set_type(SELF_TYPE);
+    } else {
+        object->set_type(type);
+    }
+    return type;
+}
+
+
+Symbol ClassTable::check_dispatch(dispatch_class *dispatch) {
+    auto *dispatch_expr = dispatch->get_expr();
+    auto *dispatch_name = dispatch->get_name();
+    auto *dispatch_actual = dispatch->get_actual();
+    auto *symbol_table = symbol_tables_.lookup(current_class_name_);
+    auto *type = check_expr(dispatch_expr);
+    if (type == nullptr) {
+        semant_error() << current_file_name_ << ":" << dispatch->get_line_number()
+                << ": Undeclared identifier " << dispatch_name
+                << ".\n";
+        return nullptr;
+    }
+
+    auto *feature_table = feature_tables_.lookup(type);
+    if (feature_table == nullptr) {
+        cout << "Feature table for " << type << " is null.\n";
+    }
+    auto *feature = feature_table->lookup(dispatch_name);
+    if (feature == nullptr) {
+        semant_error() << current_file_name_ << ":" << dispatch->get_line_number()
+                << ": Dispatch to undefined method " << dispatch_name
+                << ".\n";
+        return nullptr;
+    }
+
+    if (auto *method = dynamic_cast<method_class *>(feature); method != nullptr) {
+        auto *formals = method->get_formals();
+        auto *return_type = method->get_return_type();
+        if (formals->len() != dispatch_actual->len()) {
+            semant_error() << current_file_name_ << ":" << dispatch->get_line_number()
+                    << ": Method " << dispatch_name
+                    << " called with wrong number of arguments.\n";
+            return nullptr;
+        }
+        for (int i = dispatch_actual->first(); dispatch_actual->more(i); i = dispatch_actual->next(i)) {
+            auto *actual_type = check_expr(dispatch_actual->nth(i));
+            auto *expected = dynamic_cast<formal_class *>(formals->nth(i));
+            auto *expected_type = expected->get_type_decl();
+            if (!actual_type->equal_string(expected_type->get_string(), expected_type->get_len())) {
+                semant_error() << current_file_name_ << ":" << dispatch->get_line_number()
+                    << ": In call of method " << dispatch_name
+                    << ", type " << actual_type
+                    << " of parameter " << expected->get_name()
+                    << " does not conform to declared type " << expected_type
+                    << ".\n";
+                continue;
+            }
+        }
+
+        dispatch->set_type(return_type);
+        return return_type;
+    }
+    return Object;
+}
+
+
+Symbol ClassTable::check_int_const(int_const_class *int_const) {
+    int_const->set_type(Int);
+    return Int;
+}
+
+
+Symbol ClassTable::check_bool_const(bool_const_class *bool_const) {
+    bool_const->set_type(Bool);
+    return Bool;
+}
+
+
+Symbol ClassTable::check_string_const(string_const_class *string_const) {
+    string_const->set_type(Str);
+    return Str;
+}
 
 
 /*   This is the entry point to the semantic checker.

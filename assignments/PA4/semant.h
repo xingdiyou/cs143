@@ -2,7 +2,7 @@
 #define SEMANT_H_
 
 #include <assert.h>
-#include <iostream>  
+#include <iostream>
 #include "cool-tree.h"
 #include "stringtab.h"
 #include "symtab.h"
@@ -21,16 +21,37 @@ typedef ClassTable *ClassTableP;
 
 class ClassTable {
 private:
-  int semant_errors;
-  void install_basic_classes();
-  ostream& error_stream;
+  void semant(Class_ class_);
+
+  int semant_errors_;
+  ostream &error_stream_;
+  Classes classes_;
+  SymbolTable<Symbol, SymbolTable<Symbol, Feature_class>> feature_tables_;
+  SymbolTable<Symbol, SymbolTable<Symbol, Entry>> symbol_tables_;
 
 public:
-  ClassTable(Classes);
-  int errors() { return semant_errors; }
-  ostream& semant_error();
-  ostream& semant_error(Class_ c);
-  ostream& semant_error(Symbol filename, tree_node *t);
+  ClassTable(Classes classes);
+
+  int errors() { return semant_errors_; }
+  ostream &semant_error();
+  ostream &semant_error(Class_ c);
+  ostream &semant_error(Symbol filename, tree_node *t);
+  Symbol current_file_name_;
+  Symbol current_class_name_;
+
+  void install_basic_classes();
+  void install_user_defined_classes();
+  void check_inheritance();
+  void check_type();
+  Symbol check_expr(Expression_class *expr);
+  Symbol check_new(new__class *new_);
+  Symbol check_block(block_class *block);
+  Symbol check_assign(assign_class *assign);
+  Symbol check_object(object_class *object);
+  Symbol check_dispatch(dispatch_class *dispatch);
+  Symbol check_int_const(int_const_class *int_const);
+  Symbol check_bool_const(bool_const_class *bool_const);
+  Symbol check_string_const(string_const_class *string_const);
 };
 
 
