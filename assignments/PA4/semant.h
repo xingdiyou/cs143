@@ -22,12 +22,13 @@ typedef ClassTable *ClassTableP;
 class ClassTable {
 private:
   void semant(Class_ class_);
-
   int semant_errors_;
   ostream &error_stream_;
   Classes classes_;
-  SymbolTable<Symbol, SymbolTable<Symbol, Feature_class>> feature_tables_;
+  SymbolTable<Symbol, SymbolTable<Symbol, Feature_class>> basic_class_tables_;
+  SymbolTable<Symbol, SymbolTable<Symbol, Feature_class>> class_tables_;
   SymbolTable<Symbol, SymbolTable<Symbol, Entry>> symbol_tables_;
+  SymbolTable<Symbol, Entry> class_hierarchy_;
 
 public:
   ClassTable(Classes classes);
