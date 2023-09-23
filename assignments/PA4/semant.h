@@ -44,15 +44,21 @@ public:
   void install_user_defined_classes();
   void check_inheritance();
   void check_type();
-  Symbol check_expr(Expression_class *expr);
-  Symbol check_new(new__class *new_);
-  Symbol check_block(block_class *block);
-  Symbol check_assign(assign_class *assign);
-  Symbol check_object(object_class *object);
-  Symbol check_dispatch(dispatch_class *dispatch);
-  Symbol check_int_const(int_const_class *int_const);
-  Symbol check_bool_const(bool_const_class *bool_const);
-  Symbol check_string_const(string_const_class *string_const);
+  void check_expr(Expression_class *expr);
+  void check_new(new__class *new_);
+  void check_block(block_class *block);
+  void check_assign(assign_class *assign);
+  void check_object(object_class *object);
+  void check_dispatch(dispatch_class *dispatch);
+  void check_int_const(int_const_class *int_const);
+  void check_bool_const(bool_const_class *bool_const);
+  void check_string_const(string_const_class *string_const);
+  void check_cond(cond_class *cond);
+  void check_let(let_class *let);
+  void check_sub(sub_class *sub);
+  void check_loop(loop_class *loop);
+  void check_plus(plus_class *plus);
+  void check_eq(eq_class *eq);
 };
 
 

@@ -244,6 +244,21 @@ void cond_class::dump(ostream& stream, int n)
 }
 
 
+Expression cond_class::get_pred() {
+   return pred;
+}
+
+
+Expression cond_class::get_then_exp() {
+   return then_exp;
+}
+
+
+Expression cond_class::get_else_exp() {
+   return else_exp;
+}
+
+
 Expression loop_class::copy_Expression()
 {
    return new loop_class(pred->copy_Expression(), body->copy_Expression());
@@ -255,6 +270,16 @@ void loop_class::dump(ostream& stream, int n)
    stream << pad(n) << "loop\n";
    pred->dump(stream, n+2);
    body->dump(stream, n+2);
+}
+
+
+Expression loop_class::get_pred() {
+   return pred;
+}
+
+
+Expression loop_class::get_body() {
+   return body;
 }
 
 
@@ -306,6 +331,26 @@ void let_class::dump(ostream& stream, int n)
 }
 
 
+Symbol let_class::get_identifier() {
+   return identifier;
+}
+
+
+Symbol let_class::get_type_decl() {
+   return type_decl;
+}
+
+
+Expression let_class::get_init() {
+   return init;
+}
+
+
+Expression let_class::get_body() {
+   return body;
+}
+
+
 Expression plus_class::copy_Expression()
 {
    return new plus_class(e1->copy_Expression(), e2->copy_Expression());
@@ -320,6 +365,16 @@ void plus_class::dump(ostream& stream, int n)
 }
 
 
+Expression plus_class::get_e1() {
+   return e1;
+}
+
+
+Expression plus_class::get_e2() {
+   return e2;
+}
+
+
 Expression sub_class::copy_Expression()
 {
    return new sub_class(e1->copy_Expression(), e2->copy_Expression());
@@ -331,6 +386,16 @@ void sub_class::dump(ostream& stream, int n)
    stream << pad(n) << "sub\n";
    e1->dump(stream, n+2);
    e2->dump(stream, n+2);
+}
+
+
+Expression sub_class::get_e1() {
+   return e1;
+}
+
+
+Expression sub_class::get_e2() {
+   return e2;
 }
 
 
@@ -400,6 +465,16 @@ void eq_class::dump(ostream& stream, int n)
    stream << pad(n) << "eq\n";
    e1->dump(stream, n+2);
    e2->dump(stream, n+2);
+}
+
+
+Expression eq_class::get_e1() {
+   return e1;
+}
+
+
+Expression eq_class::get_e2() {
+   return e2;
 }
 
 
